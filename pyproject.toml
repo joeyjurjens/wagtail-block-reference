@@ -1,0 +1,102 @@
+[project]
+name = "wagtail-block-reference"
+version = "0.1.0"
+description = "BlockReference support for Wagtail - enables forward and cyclic block references"
+readme = "README.md"
+authors = [
+    { name = "Joey Jurjens", email = "joeyjurjens@gmail.com" }
+]
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "wagtail>=7.0",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Framework :: Django",
+    "Framework :: Wagtail",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+[project.urls]
+Repository = "https://github.com/joeyjurjens/wagtail-block-reference"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["wagtail_block_reference"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.e2e.settings"
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.0",
+    "pytest-django>=4.12.0",
+    "pytest-playwright>=0.8.0",
+    "ruff>=0.8.0",
+    "tox>=4.0.0",
+    "tox-uv>=1.0.0",
+]
+
+[tool.tox]
+env_list = ["wagtail70", "wagtail73", "wagtail74"]
+
+[tool.tox.env_run_base]
+runner = "uv-venv-lock-runner"
+package = "wheel"
+wheel_build_env = ".pkg"
+dependency_groups = ["dev"]
+allowlist_externals = ["bash", "playwright"]
+commands = [
+    ["playwright", "install", "chromium"],
+    ["bash", "-c", "pytest tests/ {posargs}"],
+]
+
+[tool.tox.env.wagtail70]
+description = "Wagtail 7.0 LTS"
+deps = ["wagtail>=7.0,<7.1"]
+
+[tool.tox.env.wagtail73]
+description = "Wagtail 7.3"
+deps = ["wagtail>=7.3,<7.4"]
+
+[tool.tox.env.wagtail74]
+description = "Wagtail 7.4 LTS (current)"
+deps = ["wagtail>=7.4,<7.5"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+exclude = [".venv", "migrations"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "T20", "BLE", "C4", "B006", "B904"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["wagtail_block_reference"]
+section-order = [
+    "future",
+    "standard-library",
+    "django",
+    "wagtail",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.isort.sections]
+django = ["django", "django_*"]
+wagtail = ["wagtail", "wagtail_*"]

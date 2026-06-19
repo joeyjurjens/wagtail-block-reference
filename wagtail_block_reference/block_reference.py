@@ -34,8 +34,12 @@ class BlockReference:
 
     It is a proxy, not a Block: value operations and ``child_blocks`` are forwarded to the
     resolved target via ``__getattr__``, so at runtime it behaves exactly as the block it
-    points to; that recursion is bounded by the (finite) data. ``check`` is forwarded too,
-    wrapped in a visited set so a cycle terminates, and reports a resolution failure as
+    points to; that recursion is bounded by the (finite) data. The definition-level walks a
+    parent triggers (``check`` and deferred validation) are forwarded too, so a referenced
+    block is validated and deferred just like a direct child. Each is wrapped in a visited
+    set so a cycle terminates when it re-reaches a target already on the stack; the block
+    family's own deferred-validation guard keeps the shared instances of a cyclic target
+    from being deferred twice. ``check`` additionally reports a resolution failure as
     ``wagtailcore.E009``.
 
     A reference does not appear in migrations: the lookup builder serialises it as its
@@ -146,6 +150,12 @@ class BlockReference:
                 )
             ]
         return self.forward_walk("check", [], **kwargs)
+
+    def defer_required_validation(self):
+        self.forward_walk("defer_required_validation", None)
+
+    def restore_deferred_validation(self):
+        self.forward_walk("restore_deferred_validation", None)
 
     def forward_walk(self, method, on_reentry, **kwargs):
         # Forward a definition-level walk to the target, but stop if the target is already

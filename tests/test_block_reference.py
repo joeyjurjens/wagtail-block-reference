@@ -130,6 +130,77 @@ class TestCyclicBlockBehaviour(SimpleTestCase):
             prepped["replies"][0]["value"]["replies"][0]["value"]["text"], "L2"
         )
 
+    def test_defer_and_restore_validation_terminates(self):
+        # StreamBlock/StructBlock walk child_blocks for defer/restore; a cyclic
+        # BlockReference must not cause an infinite loop.
+        block = self.CommentBlock()
+        block.defer_required_validation()
+        block.restore_deferred_validation()
+
+    def test_deferred_validation_terminates_through_cycle(self):
+        # Empty required text passes while deferred, then fails once validation is restored.
+        block = self.CommentBlock()
+        value = block.to_python(
+            {"text": "ok", "replies": [{"text": "", "replies": []}]}
+        )
+        block.clean_deferred(value)
+        with self.assertRaises(ValidationError):
+            block.clean(value)
+
+        # The same across a mutual reference.
+        class AuthorBlock(blocks.StructBlock):
+            name = blocks.CharBlock(required=True)
+            posts = blocks.ListBlock(BlockReference(lambda: PostBlock))
+
+        class PostBlock(blocks.StructBlock):
+            authors = blocks.ListBlock(BlockReference(lambda: AuthorBlock))
+
+        author = AuthorBlock()
+        author_value = author.to_python({"name": "", "posts": []})
+        author.clean_deferred(author_value)
+        with self.assertRaises(ValidationError):
+            author.clean(author_value)
+
+    def test_deferred_validation_reaches_forward_referenced_block(self):
+        class PageBlock(blocks.StructBlock):
+            title = blocks.CharBlock()
+            author = BlockReference(lambda: AuthorBlock)
+
+        class AuthorBlock(blocks.StructBlock):
+            name = blocks.CharBlock(required=True)
+
+        block = PageBlock()
+        value = block.to_python({"title": "hi", "author": {"name": ""}})
+
+        block.clean_deferred(value)  # must not raise: the author's required is deferred
+
+        with self.assertRaises(ValidationError):
+            block.clean(value)  # restored: required is enforced again
+
+    def test_overridden_defer_restore_reached_through_reference(self):
+        # A target that overrides the deferred-validation hooks is still driven
+        # correctly when reached through a reference.
+        calls = []
+
+        class CustomBlock(blocks.StructBlock):
+            name = blocks.CharBlock(required=True)
+
+            def defer_required_validation(self):
+                calls.append("defer")
+                super().defer_required_validation()
+
+            def restore_deferred_validation(self):
+                calls.append("restore")
+                super().restore_deferred_validation()
+
+        class PageBlock(blocks.StructBlock):
+            custom = BlockReference(lambda: CustomBlock)
+
+        ref = PageBlock().child_blocks["custom"]
+        ref.defer_required_validation()
+        ref.restore_deferred_validation()
+        self.assertEqual(calls, ["defer", "restore"])
+
     def test_mutual_reference_terminates(self):
         class AuthorBlock(blocks.StructBlock):
             name = blocks.CharBlock()
